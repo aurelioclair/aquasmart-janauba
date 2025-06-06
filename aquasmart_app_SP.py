@@ -6,9 +6,52 @@ import matplotlib.pyplot as plt
 import numpy as np
 from requests.exceptions import RequestException
 
-st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
+# ——— Injeção de CSS para tema branco e azul ———
+st.markdown("""
+<style>
+/* Fundo geral leve azul */
+.reportview-container, .main {
+  background-color: #f7faff;
+}
+/* Cards de métricas (Streamlit 1.19+) */
+.stMetric > div {
+  background-color: #ffffff !important;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+/* Cabeçalhos em azul escuro */
+h1, h2, h3 {
+  color: #003366 !important;
+}
+/* Sidebar com fundo branco */
+[data-testid="stSidebar"] {
+  background-color: #ffffff;
+  border-right: 1px solid #e6ecf5;
+}
+/* Botões e selects em destaque azul */
+.stButton>button, .stSelectbox>div>div>div>button {
+  background-color: #0055aa !important;
+  color: white !important;
+  border-radius: 4px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# ---- Helpers Caching ----
+# ——— Sidebar com logo e navegação ———
+st.sidebar.image(
+    "https://raw.githubusercontent.com/aurelioclair/aquasmart-janauba/main/logo.png",
+    width=120
+)
+st.sidebar.markdown("## Navegação")
+page = st.sidebar.radio("", ["Previsão de Chuva", "Reservatórios", "Consumo"])
+
+# ——— Configuração da página ———
+st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
+st.title("💧 AquaSmart – São Paulo/SP")
+st.markdown("---")
+
+# ---- Helpers com cache ----
 @st.cache_data(ttl=3600)
 def get_weather_data(lat: float, lon: float) -> pd.DataFrame:
     url = (
@@ -34,7 +77,7 @@ def get_sabesp_data(url: str) -> list[dict]:
         raise ValueError("API retornou lista vazia")
     return data
 
-# ---- Display Functions ----
+# ---- Funções de exibição ----
 def show_weather():
     st.header("🌦️ Previsão de Chuva (Próximos 7 dias)")
     try:
@@ -51,7 +94,7 @@ def show_sabesp():
         escolha = st.selectbox("Escolha o sistema:", sistemas, index=sistemas.index("Cantareira"))
         entry = next(item for item in data if item["name"] == escolha)["data"]
 
-        # parse percent to float
+        # converte percentual pra float
         pct = float(entry["volume_armazenado"].replace("%", "").strip())
         pluviod = entry["pluviometria_do_dia"]
         media = entry["media_historica_do_mes"]
@@ -78,11 +121,12 @@ def show_consumo():
     df = pd.DataFrame({"Dia": dias, "Consumo (L/pessoa)": consumo}).set_index("Dia")
     st.line_chart(df, use_container_width=True)
 
-# ---- Main ----
-st.title("💧 AquaSmart - São Paulo/SP")
-st.markdown("Sistema inteligente para monitoramento de chuva e reservatórios")
+# ---- Renderização conforme sidebar ----
+if page == "Previsão de Chuva":
+    show_weather()
+elif page == "Reservatórios":
+    show_sabesp()
+else:
+    show_consumo()
 
-show_weather()
-show_sabesp()
-show_consumo()
 
