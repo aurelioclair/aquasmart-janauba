@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from requests.exceptions import RequestException
 
+# ——— Configuração da página (sempre primeiro) ———
+st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
+
 # ——— Injeção de CSS para tema branco e azul ———
 st.markdown("""
 <style>
@@ -13,7 +16,7 @@ st.markdown("""
 .reportview-container, .main {
   background-color: #f7faff;
 }
-/* Cards de métricas (Streamlit 1.19+) */
+/* Cards de métricas */
 .stMetric > div {
   background-color: #ffffff !important;
   border-radius: 8px;
@@ -46,8 +49,7 @@ st.sidebar.image(
 st.sidebar.markdown("## Navegação")
 page = st.sidebar.radio("", ["Previsão de Chuva", "Reservatórios", "Consumo"])
 
-# ——— Configuração da página ———
-st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
+# ——— Título principal ———
 st.title("💧 AquaSmart – São Paulo/SP")
 st.markdown("---")
 
@@ -94,7 +96,6 @@ def show_sabesp():
         escolha = st.selectbox("Escolha o sistema:", sistemas, index=sistemas.index("Cantareira"))
         entry = next(item for item in data if item["name"] == escolha)["data"]
 
-        # converte percentual pra float
         pct = float(entry["volume_armazenado"].replace("%", "").strip())
         pluviod = entry["pluviometria_do_dia"]
         media = entry["media_historica_do_mes"]
@@ -128,5 +129,6 @@ elif page == "Reservatórios":
     show_sabesp()
 else:
     show_consumo()
+
 
 
