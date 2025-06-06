@@ -1,63 +1,68 @@
-import pandas as pd
-import numpy as np
+
+import streamlit as st
 import requests
 from datetime import datetime
 import matplotlib.pyplot as plt
-import streamlit as st
+import numpy as np
 
-# ----- PARTE 1: Previsão de chuva (Open-Meteo) -----
-lat, lon = -23.5505, -46.6333
-url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=precipitation_sum&timezone=America%2FSao_Paulo"
+st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
 
-data = requests.get(url).json()
-df_clima = pd.DataFrame({
-    "Data": pd.to_datetime(data['daily']['time']),
-    "Precipitacao_Prevista_mm": data['daily']['precipitation_sum']
-})
-
-# ----- PARTE 2: Simulação de consumo e nível de reservatório -----
-dias = 60
-np.random.seed(42)
-datas_passadas = pd.date_range(end=datetime.today(), periods=dias)
-
-chuva_hist = np.random.gamma(2, 4, dias)
-consumo = np.random.normal(15000, 1000, dias)
-entrada = chuva_hist * 80
-nivel = np.clip(np.cumsum(entrada - consumo) + 5e5, 0, None)
-
-df_hist = pd.DataFrame({
-    "Data": datas_passadas,
-    "Precipitacao_mm": chuva_hist,
-    "Consumo_m3": consumo,
-    "Entrada_Agua_m3": entrada,
-    "Nivel_Reservatorio_m3": nivel
-})
-
-# ----- PARTE 3: Streamlit Dashboard -----
-st.set_page_config(page_title="AquaSmart - Janaúba", layout="wide")
-
+# ----- TÍTULO -----
 st.title("💧 AquaSmart - São Paulo/SP")
-st.subheader("Previsão de Chuva e Gestão de Abastecimento de Água")
+st.markdown("Sistema inteligente para monitoramento de chuva e reservatórios")
 
-col1, col2 = st.columns(2)
+# ----- PREVISÃO DO TEMPO (Open-Meteo) -----
+st.header("🌦️ Previsão de Chuva (Próximos 7 dias)")
 
-with col1:
-    st.metric("Precipitação prevista para amanhã", f"{df_clima['Precipitacao_Prevista_mm'][1]:.1f} mm")
-    st.bar_chart(df_clima.set_index("Data")["Precipitacao_Prevista_mm"])
+latitude = -23.5505
+longitude = -46.6333
 
-with col2:
-    st.metric("Nível atual do reservatório", f"{df_hist['Nivel_Reservatorio_m3'].iloc[-1]:,.0f} m³")
-    st.line_chart(df_hist.set_index("Data")[["Consumo_m3", "Entrada_Agua_m3"]])
+weather_url = (
+    f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}"
+    "&daily=precipitation_sum&timezone=America%2FSao_Paulo"
+)
 
-# ----- PARTE 4: Simulação de risco -----
-media_entrada = df_hist["Entrada_Agua_m3"][-7:].mean()
-media_consumo = df_hist["Consumo_m3"][-7:].mean()
-saldo_diario = media_entrada - media_consumo
-dias_restantes = df_hist['Nivel_Reservatorio_m3'].iloc[-1] / abs(saldo_diario) if saldo_diario < 0 else 999
+try:
+    weather_response = requests.get(weather_url).json()
+    dias = weather_response["daily"]["time"]
+    chuva = weather_response["daily"]["precipitation_sum"]
 
-st.subheader("🔔 Alerta de Abastecimento")
-if dias_restantes < 30:
-    st.error(f"🚨 Se nada mudar, a água pode acabar em aproximadamente {int(dias_restantes)} dias!")
-    st.info("Sugestão: Ativar campanha de economia e revisão do uso agrícola.")
-else:
-    st.success("✅ Abastecimento dentro dos padrões para os próximos 30 dias.")
+    st.line_chart(
+        data=chuva,
+        x=dias,
+        y="Precipitação (mm)",
+        use_container_width=True
+    )
+except Exception as e:
+    st.error("Erro ao obter dados climáticos: " + str(e))
+
+# ----- DADOS DA SABESP (via API pública) -----
+st.header("📊 Nível do Reservatório - Sistema Cantareira (SABESP)")
+
+sabesp_url = "https://sabesp-api.herokuapp.com/v2"
+
+try:
+    sabesp_response = requests.get(sabesp_url).json()
+    cantareira = next(item for item in sabesp_response if item["name"] == "Cantareira")
+    dados = cantareira["data"]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("💧 Volume Armazenado", dados["volume_armazenado"])
+    col2.metric("🌧️ Pluviometria (hoje)", dados["pluviometria_do_dia"])
+    col3.metric("📆 Média Hist. do mês", dados["media_historica_do_mes"])
+except Exception as e:
+    st.error("Erro ao obter dados da SABESP: " + str(e))
+
+# ----- SIMULAÇÃO DO CONSUMO -----
+st.header("🏠 Simulação de Consumo Diário de Água (residencial)")
+
+dias = list(range(1, 31))
+np.random.seed(42)
+consumo = np.random.normal(loc=200, scale=20, size=30)  # litros por pessoa por dia
+
+fig, ax = plt.subplots()
+ax.plot(dias, consumo, marker='o', linestyle='-', color='blue')
+ax.set_title("Consumo Diário Estimado (Litros por Pessoa)")
+ax.set_xlabel("Dia")
+ax.set_ylabel("Consumo (L)")
+st.pyplot(fig)
