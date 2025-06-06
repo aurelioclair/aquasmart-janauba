@@ -1,17 +1,17 @@
 
 import streamlit as st
 import requests
+import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
 st.set_page_config(page_title="AquaSmart - São Paulo/SP", layout="wide")
 
-# ----- TÍTULO -----
 st.title("💧 AquaSmart - São Paulo/SP")
 st.markdown("Sistema inteligente para monitoramento de chuva e reservatórios")
 
-# ----- PREVISÃO DO TEMPO (Open-Meteo) -----
+# ----- PREVISÃO DE CHUVA (CORRIGIDO) -----
 st.header("🌦️ Previsão de Chuva (Próximos 7 dias)")
 
 latitude = -23.5505
@@ -27,33 +27,38 @@ try:
     dias = weather_response["daily"]["time"]
     chuva = weather_response["daily"]["precipitation_sum"]
 
-    st.line_chart(
-        data=chuva,
-        x=dias,
-        y="Precipitação (mm)",
-        use_container_width=True
-    )
+    df_chuva = pd.DataFrame({
+        "Data": dias,
+        "Precipitação (mm)": chuva
+    })
+    df_chuva["Data"] = pd.to_datetime(df_chuva["Data"])
+
+    st.line_chart(df_chuva.set_index("Data"))
 except Exception as e:
     st.error("Erro ao obter dados climáticos: " + str(e))
 
-# ----- DADOS DA SABESP (via API pública) -----
+# ----- DADOS SABESP (TRATAMENTO DE ERRO INCLUIDO) -----
 st.header("📊 Nível do Reservatório - Sistema Cantareira (SABESP)")
 
 sabesp_url = "https://sabesp-api.herokuapp.com/v2"
 
 try:
-    sabesp_response = requests.get(sabesp_url).json()
-    cantareira = next(item for item in sabesp_response if item["name"] == "Cantareira")
-    dados = cantareira["data"]
+    sabesp_response = requests.get(sabesp_url)
+    if sabesp_response.status_code == 200 and sabesp_response.text.strip():
+        sabesp_data = sabesp_response.json()
+        cantareira = next(item for item in sabesp_data if item["name"] == "Cantareira")
+        dados = cantareira["data"]
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("💧 Volume Armazenado", dados["volume_armazenado"])
-    col2.metric("🌧️ Pluviometria (hoje)", dados["pluviometria_do_dia"])
-    col3.metric("📆 Média Hist. do mês", dados["media_historica_do_mes"])
+        col1, col2, col3 = st.columns(3)
+        col1.metric("💧 Volume Armazenado", dados["volume_armazenado"])
+        col2.metric("🌧️ Pluviometria (hoje)", dados["pluviometria_do_dia"])
+        col3.metric("📆 Média Hist. do mês", dados["media_historica_do_mes"])
+    else:
+        st.warning("⚠️ API da SABESP fora do ar ou retornando dados vazios.")
 except Exception as e:
     st.error("Erro ao obter dados da SABESP: " + str(e))
 
-# ----- SIMULAÇÃO DO CONSUMO -----
+# ----- SIMULAÇÃO DE CONSUMO -----
 st.header("🏠 Simulação de Consumo Diário de Água (residencial)")
 
 dias = list(range(1, 31))
